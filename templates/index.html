@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfabot - Asistente Virtual</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        .container {
+            text-align: center;
+            background-color: white;
+            padding: 40px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 32px;
+            color: #007BFF;
+            margin-bottom: 10px;
+        }
+
+        img {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid #007BFF;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 8px;
+            margin: 10px;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Efecto de luz cuando el asistente habla */
+        button.playing {
+            animation: glow 1.5s infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px #007BFF;
+            }
+            to {
+                box-shadow: 0 0 20px #00BFFF;
+            }
+        }
+
+        .response {
+            margin-top: 30px;
+            font-size: 20px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .response.playing {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://via.placeholder.com/120" alt="Alfabot" id="alfabotImage">
+        <h1>Alfabot</h1>
+        <button id="recordButton">🎙 Hablar</button>
+        <button id="stopButton" disabled>⏹️ Parar</button>
+        <div class="response" id="responseText"></div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        const recordButton = document.getElementById('recordButton');
+        const stopButton = document.getElementById('stopButton');
+        const responseText = document.getElementById('responseText');
+        const alfabotImage = document.getElementById('alfabotImage');
+
+        recordButton.addEventListener('click', async () => {
+            // Pedir permiso para acceder al micrófono
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.start();
+            recordButton.disabled = true;
+            stopButton.disabled = false;
+
+            mediaRecorder.addEventListener('dataavailable', event => {
+                audioChunks.push(event.data);
+            });
+
+            mediaRecorder.addEventListener('stop', () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+                audioChunks = [];
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'audio.mp3');
+
+                // Enviar el archivo de audio al servidor Flask
+                fetch('/record', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.blob())
+                .then(blob => {
+                    const audioUrl = URL.createObjectURL(blob);
+                    const audio = new Audio(audioUrl);
+                    audio.play();  // Reproducir la respuesta de voz
+
+                    responseText.innerHTML = 'Reproduciendo respuesta del asistente...';
+                    responseText.classList.add('playing');
+                    recordButton.classList.add('playing');
+
+                    audio.onended = () => {
+                        responseText.innerHTML = 'Interacción completada.';
+                        responseText.classList.remove('playing');
+                        recordButton.classList.remove('playing');
+                    };
+                })
+                .catch(error => {
+                    console.error('Error al enviar audio:', error);
+                    responseText.innerHTML = 'Error en la interacción.';
+                });
+
+                recordButton.disabled = false;
+                stopButton.disabled = true;
+            });
+        });
+
+        stopButton.addEventListener('click', () => {
+            mediaRecorder.stop();
+        });
+    </script>
+</body>
+</html>
